@@ -19,7 +19,7 @@
 
 ## File Structure
 ```
-backend/
+mateatgumi-backend/
 ├── dataset/               # JSON 파일 저장 폴더 (크롤링된 데이터)
 │   └── gumi_restaurants.json  # 50개의 식당 및 100개의 리뷰 포함
 ├── .dockerignore          # Docker 빌드 시 제외할 파일 목록

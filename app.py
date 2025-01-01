@@ -14,7 +14,12 @@ from pydantic import BaseModel
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 
+import openai
+from openai import AsyncOpenAI
+
 load_dotenv()
+
+openai = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # upstage models
 chat_upstage = ChatUpstage()
@@ -102,39 +107,53 @@ async def chat_endpoint(req: MessageRequest):
     return {"reply": result}
 
 
-# @app.post("/assistant")
-# async def assistant_endpoint(req: AssistantRequest):
-#     assistant = await openai.beta.assistants.retrieve("asst_tc4AhtsAjNJnRtpJmy1gjJOE")
-#
-#     if req.thread_id:
-#         # We have an existing thread, append user message
-#         await openai.beta.threads.messages.create(
-#             thread_id=req.thread_id, role="user", content=req.message
-#         )
-#         thread_id = req.thread_id
-#     else:
-#         # Create a new thread with user message
-#         thread = await openai.beta.threads.create(
-#             messages=[{"role": "user", "content": req.message}]
-#         )
-#         thread_id = thread.id
-#
-#     # Run and wait until complete
-#     await openai.beta.threads.runs.create_and_poll(
-#         thread_id=thread_id, assistant_id=assistant.id
-#     )
-#
-#     # Now retrieve messages for this thread
-#     # messages.list returns an async iterator, so let's gather them into a list
-#     all_messages = [
-#         m async for m in openai.beta.threads.messages.list(thread_id=thread_id)
-#     ]
-#     print(all_messages)
-#
-#     # The assistant's reply should be the last message with role=assistant
-#     assistant_reply = all_messages[0].content[0].text.value
-#
-#     return {"reply": assistant_reply, "thread_id": thread_id}
+@app.post("/assistant")
+async def assistant_endpoint(req: AssistantRequest):
+
+    # thread_id 가 없는 초기 대화화
+    if not req.thread_id:
+        # 새로운 대화 시작 - context 포함
+        result_docs = pinecone_retriever.invoke(req.message)
+        initial_prompt = f"""너는 인공지능 챗봇으로, 주어진 문서를 정확하게 이해해서 답변을 해야 해.
+        문서에 있는 내용을 바탕으로 답변하고, 문서에 없는 내용은 '해당 정보는 찾을 수 없습니다'라고 답변해줘.
+        
+        참고할 정보:
+        {result_docs}
+        
+        User: {req.message}"""
+        
+        thread = await openai.beta.threads.create(
+            messages=[{
+                "role": "user", 
+                "content": initial_prompt
+            }]
+        )
+        thread_id = thread.id
+
+    # Thread id가 있다면
+    else:
+        # 기존 대화 이어가기 - 이전 맥락 유지
+        await openai.beta.threads.messages.create(
+            thread_id=req.thread_id, 
+            role="user", 
+            content=req.message
+        )
+        thread_id = req.thread_id
+
+    # Assistant 실행
+    assistant = await openai.beta.assistants.retrieve("asst_VlpG1oOKqa3PACzjWg898WMw")
+    await openai.beta.threads.runs.create_and_poll(
+        thread_id=thread_id, 
+        assistant_id=assistant.id
+    )
+
+    # 응답 가져오기
+    all_messages = [
+        m async for m in openai.beta.threads.messages.list(thread_id=thread_id)
+    ]
+    assistant_reply = all_messages[0].content[0].text.value
+
+    return {"reply": assistant_reply, "thread_id": thread_id}
 
 
 @app.get("/health")

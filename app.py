@@ -106,6 +106,10 @@ async def chat_endpoint(req: MessageRequest):
     result = chain.invoke({"context": result_docs, "input": req.message})
     return {"reply": result}
 
+from collections import defaultdict
+
+# Thread별 최근 응답을 저장하는 딕셔너리
+recent_replies = defaultdict(str)
 
 @app.post("/assistant")
 async def assistant_endpoint(req: AssistantRequest):
@@ -132,10 +136,15 @@ async def assistant_endpoint(req: AssistantRequest):
 
     # Thread id가 있는 경우
     else:
-        context_prompt = f"""이전 대화를 이어서 답변해주되, 아래 문서의 내용도 참고해서 답변해줘.
+        recent_reply = recent_replies[req.thread_id]
+
+        context_prompt = f"""이전 대화를 이어서 답변해주되, 가장 최근의 답변을 우선적으로 고려해줘. 아래 문서의 내용도 참고해서 답변해줘.
         
         참고할 정보:
         {result_docs}
+
+        최근 답변:
+        {recent_reply}
         
         User: {req.message}"""
         
@@ -159,6 +168,9 @@ async def assistant_endpoint(req: AssistantRequest):
         m async for m in openai.beta.threads.messages.list(thread_id=thread_id)
     ]
     assistant_reply = all_messages[0].content[0].text.value
+
+    # Thread별 최근 응답 업데이트
+    recent_replies[thread_id] = assistant_reply
 
     return {"reply": assistant_reply, "thread_id": thread_id}
 

@@ -109,10 +109,11 @@ async def chat_endpoint(req: MessageRequest):
 
 @app.post("/assistant")
 async def assistant_endpoint(req: AssistantRequest):
-    # thread_id 가 없는 초기 대화화
+    # Pinecone 검색 수행
+    result_docs = pinecone_retriever.invoke(req.message)
+    
+    # thread_id 가 없는 초기 대화인 경우
     if not req.thread_id:
-        # 새로운 대화 시작 - context 포함
-        result_docs = pinecone_retriever.invoke(req.message)
         initial_prompt = f"""너는 인공지능 챗봇으로, 주어진 문서를 정확하게 이해해서 답변을 해야 해.
         문서에 있는 내용을 바탕으로 답변해줘. **, #, ` 등 Markdown 문법을 사용하지 말고 답변해줘.
         
@@ -129,13 +130,20 @@ async def assistant_endpoint(req: AssistantRequest):
         )
         thread_id = thread.id
 
-    # Thread id가 있다면
+    # Thread id가 있는 경우
     else:
-        # 기존 대화 이어가기 - 이전 맥락 유지
+        context_prompt = f"""이전 대화를 이어서 답변해주되, 아래 문서의 내용도 참고해서 답변해줘.
+        
+        참고할 정보:
+        {result_docs}
+        
+        User: {req.message}"""
+        
+        # 기존 대화 이어가기 - 새로운 컨텍스트 포함
         await openai.beta.threads.messages.create(
             thread_id=req.thread_id, 
             role="user", 
-            content=req.message
+            content=context_prompt
         )
         thread_id = req.thread_id
 
@@ -153,7 +161,6 @@ async def assistant_endpoint(req: AssistantRequest):
     assistant_reply = all_messages[0].content[0].text.value
 
     return {"reply": assistant_reply, "thread_id": thread_id}
-
 
 @app.get("/health")
 @app.get("/")

@@ -109,13 +109,12 @@ async def chat_endpoint(req: MessageRequest):
 
 @app.post("/assistant")
 async def assistant_endpoint(req: AssistantRequest):
-
     # thread_id 가 없는 초기 대화화
     if not req.thread_id:
         # 새로운 대화 시작 - context 포함
         result_docs = pinecone_retriever.invoke(req.message)
         initial_prompt = f"""너는 인공지능 챗봇으로, 주어진 문서를 정확하게 이해해서 답변을 해야 해.
-        문서에 있는 내용을 바탕으로 답변하고, 문서에 없는 내용은 '해당 정보는 찾을 수 없습니다'라고 답변해줘.
+        문서에 있는 내용을 바탕으로 답변해줘. **, #, ` 등 Markdown 문법을 사용하지 말고 답변해줘.
         
         참고할 정보:
         {result_docs}

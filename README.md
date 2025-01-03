@@ -58,6 +58,7 @@ pip install -r requirements.txt
 - `.env` 파일 생성 후 아래 변수 추가:
   ```env
   OPENAI_API_KEY='~'
+  OPENAI_ASSISTANTS_API_ID='~'
   PINECONE_API_KEY='~'
   UPSTAGE_API_KEY='~'
   ```

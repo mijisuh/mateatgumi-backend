@@ -11,9 +11,10 @@
 - **최적화된 배포 환경**: Fly.io를 통해 안정적이고 효율적인 서버 배포가 가능합니다.
 
 ## Tech Stack
-- **Backend Framework**: Python (FastAPI)
-- **Database**: Pinecone (Vector DB)
+- **Backend Framework**: Python, FastAPI
+- **Vector DB**: Pinecone
 - **Embedding Model**: Upstage Solar Embedding API
+- **LLM Model**: OpenAI Assistants API
 - **Deployment**: Fly.io
 - **Web Scraping**: Selenium
 
@@ -26,7 +27,9 @@ mateatgumi-backend/
 ├── .gitignore             # Git에서 제외할 파일 목록
 ├── Procfile               # Fly.io 배포 설정 파일
 ├── app.py                 # API 서버 메인 파일
-├── embed.py               # JSON 데이터를 벡터화하고 Pinecone에 저장하는 코드
+├── crawler_Ver3_add.py    # 웹 스크래핑 파일
+├── embed.py               # JSON 데이터 벡터화 및 Pinecone
+│                            저장 코드
 ├── fly.toml               # Fly.io 배포 구성 파일
 ├── handler.py             # API 요청 처리 및 라우팅
 ├── requirements.txt       # Python 의존성 목록

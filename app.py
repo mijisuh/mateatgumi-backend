@@ -10,6 +10,7 @@ from langchain_upstage import ChatUpstage
 from langchain_upstage import UpstageEmbeddings
 from pinecone import Pinecone, ServerlessSpec
 from pydantic import BaseModel
+from collections import defaultdict
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
@@ -29,15 +30,6 @@ pinecone_api_key = os.environ.get("PINECONE_API_KEY")
 pc = Pinecone(api_key=pinecone_api_key)
 index_name = "gumi-restaurants"
 
-# create new index
-# if index_name not in pc.list_indexes().names():
-#     pc.create_index(
-#         name=index_name,
-#         dimension=4096,
-#         metric="cosine",
-#         spec=ServerlessSpec(cloud="aws", region="us-east-1"),
-#     )
-
 pinecone_vectorstore = PineconeVectorStore(index=pc.Index(index_name), embedding=embedding_upstage)
 
 pinecone_retriever = pinecone_vectorstore.as_retriever(
@@ -45,7 +37,11 @@ pinecone_retriever = pinecone_vectorstore.as_retriever(
     search_kwargs={"k": 3}  # 쿼리와 관련된 chunk를 3개 검색하기 (default : 4)
 )
 
-app = FastAPI()
+app = FastAPI(
+    title="맛있구미(MatEatGumi) API",
+    description="맛있구미 서비스에 대한 API 명세입니다.",
+    version="1.0"
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,68 +51,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
 class ChatMessage(BaseModel):
     role: str
     content: str
-
 
 class AssistantRequest(BaseModel):
     message: str
     thread_id: Optional[str] = None
 
-
 class ChatRequest(BaseModel):
     messages: List[ChatMessage]  # Entire conversation for naive mode
-
 
 class MessageRequest(BaseModel):
     message: str
 
-
-@app.post("/chat")
-async def chat_endpoint(req: MessageRequest):
-    # qa = RetrievalQA.from_chain_type(llm=chat_upstage,
-    #                                  chain_type="stuff",
-    #                                  retriever=pinecone_retriever,
-    #                                  return_source_documents=True)
-
-    # result = qa(req.message)
-    # return {"reply": result['result']}
-
-    result_docs = pinecone_retriever.invoke(req.message)
-
-    prompt = ChatPromptTemplate.from_messages(
-    [
-        (
-            "system",
-            """
-            너는 인공지는 챗봇으로, 주어진 문서를 정확하게 이해해서 답변을 해야 해.
-            문서에 있는 내용으로만 답변하고 내용이 없다면, 잘 모르겠다고 답변 해.
-            ---
-            CONTEXT:
-            {context}
-            """,
-        ),
-        ("human", "{input}"),
-    ]
-    )
-
-    chain = prompt | chat_upstage | StrOutputParser()
-    result = chain.invoke({"context": result_docs, "input": req.message})
-    return {"reply": result}
-
-from collections import defaultdict
-
 # Thread별 최근 응답을 저장하는 딕셔너리
 recent_replies = defaultdict(str)
 
-@app.post("/assistant")
+@app.post("/assistant", summary="답변 생성", response_description="사용자 질문에 대한 답변을 생성하여 응답으로 전송합니다.")
 async def assistant_endpoint(req: AssistantRequest):
+    """
+    사용자 질문을 받아 OpenAI Assistants API를 호출하여 답변을 생성하는 엔드포인트입니다.
+    - **message**: 사용자 질문 텍스트
+    - **thread_id**: 스레드를 식별하는 id 값(최초 질문 시 빈 값)
+    """
+
     # Pinecone 검색 수행
     result_docs = pinecone_retriever.invoke(req.message)
     
-    # thread_id 가 없는 초기 대화인 경우
+    # thread_id가 없는 초기 대화인 경우
     if not req.thread_id:
         initial_prompt = f"""너는 인공지능 챗봇으로, 주어진 문서를 정확하게 이해해서 답변을 해야 해.
         문서에 있는 내용을 바탕으로 답변해줘. **, #, ` 등 Markdown 문법을 사용하지 말고 답변해줘.
@@ -173,12 +136,6 @@ async def assistant_endpoint(req: AssistantRequest):
     recent_replies[thread_id] = assistant_reply
 
     return {"reply": assistant_reply, "thread_id": thread_id}
-
-@app.get("/health")
-@app.get("/")
-async def health_check():
-    return {"status": "ok"}
-
 
 if __name__ == "__main__":
     import uvicorn

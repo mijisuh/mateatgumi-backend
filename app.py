@@ -157,7 +157,7 @@ async def assistant_endpoint(req: AssistantRequest):
         thread_id = req.thread_id
 
     # Assistant 실행
-    assistant = await openai.beta.assistants.retrieve("asst_VlpG1oOKqa3PACzjWg898WMw")
+    assistant = await openai.beta.assistants.retrieve(os.environ.get("OPENAI_ASSISTANTS_API_ID"))
     await openai.beta.threads.runs.create_and_poll(
         thread_id=thread_id, 
         assistant_id=assistant.id
